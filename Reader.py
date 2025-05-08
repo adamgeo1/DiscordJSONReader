@@ -4,7 +4,11 @@ import pathlib
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
 
+total_words = 0 # total number of words in entire log
+
 class Message:
+    author_names_and_number_of_messages = {}
+
     author_ids_and_names = {} # dict to save names for mentions and reply references
     message_ids_and_line_numbers = {} # dict to save message ids and what line numbers they appear on for reply references
 
@@ -14,6 +18,8 @@ class Message:
         self.author_id = message.get('author', {}).get('id') # gets the author id of the message
         self.author = message.get('author', {}).get('global_name') or message.get('author', {}).get('username') # gets either the author's "global_name" (possibly nickname?) and if that doesn't exist, gets their discord username
         self.content = message.get('content', "") # gets content/text of their message
+        global total_words
+        total_words += len(self.content)
         self.timestamp = message.get('timestamp', "")[:10] + " " + message.get('timestamp', "")[11:19] # truncated time stamp
         self.mentioned_id = None
         if message.get('mentions'):
@@ -24,6 +30,7 @@ class Message:
             self.referenced_message = message['referenced_message']
         Message.author_ids_and_names[self.author_id] = self.author # adds author name to dict
         Message.message_ids_and_line_numbers[self.message_id] = self.line_num # adds message ids to dict
+        Message.author_names_and_number_of_messages[self.author] = Message.author_names_and_number_of_messages.get(self.author, 0) + 1
 
     def replace_id_with_name(self): # replaces "<@12345678>" id in message with said person's username
         words = self.content.split()
@@ -50,6 +57,8 @@ class Message:
 
 
 def main():
+    global total_words
+
     for file in INPUT_PATH.iterdir(): # iterates over every file in the input path
         if file.is_file():
 
@@ -59,7 +68,7 @@ def main():
                 data = json.load(f) # loads json file
                 for channel, message_list in data.items():
                     line_num = 1
-                    messages.append(f"## {channel}:\n") # displays channel name
+                    messages.append(f"### **{channel}**\n") # displays channel name
                     for i in range(len(data[channel]) - 1, -1, -1): # the json is saved in reverse chronological order, so we iterate backwards
                         messages.append(Message(line_num, data[channel][i]))
                         line_num += 1
@@ -67,6 +76,12 @@ def main():
 
             with open(OUTPUT_PATH / f"{file.name}Output.md", 'w', encoding='utf-8') as f:
                 f.write(f"# {file.name}\n") # adds the input file name to the top
+                f.write(f"## **Statistics**:\n")
+                f.write(f"- Total number of words: {total_words}\n")
+                f.write(f"- Number of messages per person:\n")
+                for author in Message.author_names_and_number_of_messages:
+                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
+                f.write(f"## **Output**\n")
                 for message in messages:
                     f.write(str(message) + "\n")
 
