@@ -2,6 +2,7 @@ import json
 import pathlib
 from datetime import datetime, time
 import math
+from operator import index
 
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
@@ -16,11 +17,12 @@ def format_timestamp(string):
 
 class Message:
     author_names_and_number_of_messages = {}
+    author_names_and_number_of_messages_sent_between_eight_and_five = {}
 
     author_ids_and_names = {} # dict to save names for mentions and reply references
     message_ids_and_line_numbers = {} # dict to save message ids and what line numbers they appear on for reply references
 
-    def __init__(self, line_num, message):
+    def __init__(self, line_num, message, channel):
         self.line_num = line_num
         self.message_id = message.get('id', 0) # gets id of the message
         self.author_id = message.get('author', {}).get('id') # gets the author id of the message
@@ -37,14 +39,17 @@ class Message:
         if message.get('referenced_message'): # gets if they replied to another message
             self.referenced_message_id = message['referenced_message'].get('id') # gets the id of the replied to message so we can find the line number of that message
             self.referenced_message = message['referenced_message']
+        self.attachments = None
+        if message.get('attachments'):
+            self.attachments = message['attachments'][0].get('content_type', 'null')
         Message.author_ids_and_names[self.author_id] = self.author # adds author name to dict
         Message.message_ids_and_line_numbers[self.message_id] = self.line_num # adds message ids to dict
-        Message.author_names_and_number_of_messages[self.author] = Message.author_names_and_number_of_messages.get(self.author, 0) + 1
 
-        dt = datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M:%S")
-        if time(8, 0, 0) <= dt.time() <= time(17, 0, 0):
-            global num_messages_sent_between_eight_and_five
-            num_messages_sent_between_eight_and_five += 1
+        if channel != "introductions" and channel != "general":
+            Message.author_names_and_number_of_messages[self.author] = Message.author_names_and_number_of_messages.get(self.author, 0) + 1
+            dt = datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M:%S")
+            if time(8, 0, 0) <= dt.time() <= time(17, 0, 0):
+                Message.author_names_and_number_of_messages_sent_between_eight_and_five[self.author] = Message.author_names_and_number_of_messages_sent_between_eight_and_five.get(self.author, 0) + 1
 
     def replace_id_with_name(self): # replaces "<@12345678>" id in message with said person's username
         words = self.content.split()
@@ -74,6 +79,8 @@ class Message:
                 reply_name = self.referenced_message['author'].get('global_name') or self.referenced_message['author'].get('username')
                 reply_line_num = Message.message_ids_and_line_numbers.get(str(self.referenced_message.get('id')), 0)
                 reply_info = f"Replying to @{reply_name} from line `{reply_line_num}` - " # adds if they are replying to someone to the output string
+        if self.attachments:
+            message_line += f"(Attachments: {self.attachments}) "
         return message_line + reply_info + self.replace_id_with_name() # returns final output message
 
 
@@ -110,7 +117,7 @@ def main():
                     line_num = 1
                     messages.append(f"### **{channel}**\n") # displays channel name
                     for i in range(len(data[channel]) - 1, -1, -1): # the json is saved in reverse chronological order, so we iterate backwards
-                        messages.append(Message(line_num, data[channel][i]))
+                        messages.append(Message(line_num, data[channel][i], channel))
                         message_count += 1
                         line_num += 1
                     messages.append("") # line spacing between channel names
@@ -125,10 +132,12 @@ def main():
             with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
                 f.write(f"{file.name}\n")  # adds the input file name to the top
                 f.write(f"\nTotal number of words: {total_words}\n")
-                f.write(f"\nMessages sent between 8 AM and 5 PM: {num_messages_sent_between_eight_and_five} ({((num_messages_sent_between_eight_and_five / message_count) * 100.0):.2f}% of {message_count})\n")
                 f.write(f"\nNumber of messages per person:\n")
                 for author in Message.author_names_and_number_of_messages:
-                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
+                    Message.author_names_and_number_of_messages[author] > 1 and f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
+                f.write(f"\nNumber of messages sent between 8 AM and 5 PM per person:\n")
+                for author in Message.author_names_and_number_of_messages_sent_between_eight_and_five:
+                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages_sent_between_eight_and_five[author]}\n")
                 f.write(f"\nTime response statistics:\n") # line breaks
                 f.write(f"    - Average response time: {avg:.2f}\n")
                 f.write(f"    - Standard deviation: {standard_deviation:.2f} seconds\n")
