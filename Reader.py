@@ -1,12 +1,13 @@
 import json
 import pathlib
-from datetime import datetime
+from datetime import datetime, time
 import math
 
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
 
 total_words = 0 # total number of words in entire log
+num_messages_sent_between_eight_and_five = 0
 
 
 def format_timestamp(string):
@@ -39,6 +40,11 @@ class Message:
         Message.author_ids_and_names[self.author_id] = self.author # adds author name to dict
         Message.message_ids_and_line_numbers[self.message_id] = self.line_num # adds message ids to dict
         Message.author_names_and_number_of_messages[self.author] = Message.author_names_and_number_of_messages.get(self.author, 0) + 1
+
+        dt = datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M:%S")
+        if time(8, 0, 0) <= dt.time() <= time(17, 0, 0):
+            global num_messages_sent_between_eight_and_five
+            num_messages_sent_between_eight_and_five += 1
 
     def replace_id_with_name(self): # replaces "<@12345678>" id in message with said person's username
         words = self.content.split()
@@ -88,12 +94,15 @@ def calculate_time_stats(messages):
 
 
 def main():
-    global total_words
 
     for file in INPUT_PATH.iterdir(): # iterates over every file in the input path
         if file.is_file():
 
+            global total_words
+            global num_messages_sent_between_eight_and_five
+
             messages = []
+            message_count = 0
 
             with open(file, 'r', encoding='utf-8') as f:
                 data = json.load(f) # loads json file
@@ -102,6 +111,7 @@ def main():
                     messages.append(f"### **{channel}**\n") # displays channel name
                     for i in range(len(data[channel]) - 1, -1, -1): # the json is saved in reverse chronological order, so we iterate backwards
                         messages.append(Message(line_num, data[channel][i]))
+                        message_count += 1
                         line_num += 1
                     messages.append("") # line spacing between channel names
 
@@ -113,14 +123,18 @@ def main():
             avg, standard_deviation = calculate_time_stats(messages)
 
             with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
-                f.write(f"{file.name}\n\n")  # adds the input file name to the top
-                f.write(f"Total number of words: {total_words}\n\n")
-                f.write(f"Number of messages per person:\n")
+                f.write(f"{file.name}\n")  # adds the input file name to the top
+                f.write(f"\nTotal number of words: {total_words}\n")
+                f.write(f"\nMessages sent between 8 AM and 5 PM: {num_messages_sent_between_eight_and_five} ({((num_messages_sent_between_eight_and_five / message_count) * 100.0):.2f}% of {message_count})\n")
+                f.write(f"\nNumber of messages per person:\n")
                 for author in Message.author_names_and_number_of_messages:
                     f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
-                f.write(f"\n\nTime response statistics:\n") # line breaks
+                f.write(f"\nTime response statistics:\n") # line breaks
                 f.write(f"    - Average response time: {avg:.2f}\n")
                 f.write(f"    - Standard deviation: {standard_deviation:.2f} seconds\n")
+
+            total_words = 0 # reset total_words for next file
+            num_messages_sent_between_eight_and_five = 0 # reset num_messages_sent_between_eight_and_five
 
 if __name__ == '__main__':
     main()
