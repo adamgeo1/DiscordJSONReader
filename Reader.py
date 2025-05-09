@@ -1,10 +1,17 @@
 import json
 import pathlib
+from datetime import datetime
+import math
 
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
 
 total_words = 0 # total number of words in entire log
+
+
+def format_timestamp(string):
+    return string[:10] + " " + string[11:19]
+
 
 class Message:
     author_names_and_number_of_messages = {}
@@ -20,11 +27,12 @@ class Message:
         self.content = message.get('content', "") # gets content/text of their message
         global total_words
         total_words += len(self.content)
-        self.timestamp = message.get('timestamp', "")[:10] + " " + message.get('timestamp', "")[11:19] # truncated time stamp
+        self.timestamp = format_timestamp(message.get('timestamp', "")) # truncated time stamp
         self.mentioned_id = None
         if message.get('mentions'):
             self.mentioned_id = message['mentions'][0].get('id') # gets if they either @'d anyone, also shows up if they replied to someone
         self.referenced_message_id = None
+        self.referenced_message = None
         if message.get('referenced_message'): # gets if they replied to another message
             self.referenced_message_id = message['referenced_message'].get('id') # gets the id of the replied to message so we can find the line number of that message
             self.referenced_message = message['referenced_message']
@@ -42,18 +50,41 @@ class Message:
                 new_words.append(f"@{name}")
             else:
                 new_words.append(word)
-        return " ".join(new_words) # returns modified content message
+        return " ".join(new_words) + "\"" # returns modified content message (the end " was lost somewhere along the way)
+
+    def get_time_difference(self, message): # function to find how long it took for someone to reply to another person
+        try:
+            dt1 = datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M:%S")
+            dt2 = datetime.strptime(format_timestamp(message['timestamp']), "%Y-%m-%d %H:%M:%S")
+            return dt1 - dt2
+        except:
+            return None
 
     def __str__(self):
         message_line = f"{self.line_num}. `{self.timestamp}`  {self.author}: \"" # prefix for every message
         reply_info = ""
         if self.referenced_message_id:
-            reply = getattr(self, 'referenced_message', None) # gets the referenced message from the object
-            if reply and reply.get('author'): # just makes sure they exist
-                reply_name = reply['author'].get('global_name') or reply['author'].get('username')
-                reply_line_num = Message.message_ids_and_line_numbers.get(str(reply.get('id')), 0)
+            if self.referenced_message and self.referenced_message.get('author'): # just makes sure they exist
+                reply_name = self.referenced_message['author'].get('global_name') or self.referenced_message['author'].get('username')
+                reply_line_num = Message.message_ids_and_line_numbers.get(str(self.referenced_message.get('id')), 0)
                 reply_info = f"Replying to @{reply_name} from line `{reply_line_num}` - " # adds if they are replying to someone to the output string
         return message_line + reply_info + self.replace_id_with_name() # returns final output message
+
+
+def calculate_time_stats(messages):
+    reply_deltas = []  # stores all time differences
+
+    for message in messages:
+        if isinstance(message, Message) and message.referenced_message:
+            delta = message.get_time_difference(message.referenced_message)
+            if delta:
+                reply_deltas.append(delta)
+
+    total_seconds = [delta.total_seconds() for delta in reply_deltas]
+    avg = sum(total_seconds) / len(total_seconds)
+    standard_deviation = math.sqrt(sum((x - avg) ** 2 for x in total_seconds) / len(total_seconds))
+
+    return avg, standard_deviation
 
 
 def main():
@@ -79,12 +110,17 @@ def main():
                 for message in messages:
                     f.write(str(message) + "\n")
 
+            avg, standard_deviation = calculate_time_stats(messages)
+
             with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
                 f.write(f"{file.name}\n\n")  # adds the input file name to the top
                 f.write(f"Total number of words: {total_words}\n\n")
                 f.write(f"Number of messages per person:\n")
                 for author in Message.author_names_and_number_of_messages:
                     f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
+                f.write(f"\n\nTime response statistics:\n") # line breaks
+                f.write(f"    - Average response time: {avg:.2f}\n")
+                f.write(f"    - Standard deviation: {standard_deviation:.2f} seconds\n")
 
 if __name__ == '__main__':
     main()
