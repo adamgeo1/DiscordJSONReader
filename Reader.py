@@ -75,15 +75,16 @@ def main():
                     messages.append("") # line spacing between channel names
 
             with open(OUTPUT_PATH / f"{file.name}Output.md", 'w', encoding='utf-8') as f:
-                f.write(f"# {file.name}\n") # adds the input file name to the top
-                f.write(f"## **Statistics**:\n")
-                f.write(f"- Total number of words: {total_words}\n")
-                f.write(f"- Number of messages per person:\n")
-                for author in Message.author_names_and_number_of_messages:
-                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
                 f.write(f"## **Output**\n")
                 for message in messages:
                     f.write(str(message) + "\n")
+
+            with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
+                f.write(f"{file.name}\n\n")  # adds the input file name to the top
+                f.write(f"Total number of words: {total_words}\n\n")
+                f.write(f"Number of messages per person:\n")
+                for author in Message.author_names_and_number_of_messages:
+                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
 
 if __name__ == '__main__':
     main()
