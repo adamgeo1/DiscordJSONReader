@@ -7,10 +7,6 @@ from operator import index
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
 
-total_words = 0 # total number of words in entire log
-num_messages_sent_between_eight_and_five = 0
-
-
 def format_timestamp(string):
     return string[:10] + " " + string[11:19]
 
@@ -18,6 +14,7 @@ def format_timestamp(string):
 class Message:
     author_names_and_number_of_messages = {}
     author_names_and_number_of_messages_sent_between_eight_and_five = {}
+    author_names_and_total_words = {}
 
     author_ids_and_names = {} # dict to save names for mentions and reply references
     message_ids_and_line_numbers = {} # dict to save message ids and what line numbers they appear on for reply references
@@ -28,8 +25,6 @@ class Message:
         self.author_id = message.get('author', {}).get('id') # gets the author id of the message
         self.author = message.get('author', {}).get('global_name') or message.get('author', {}).get('username') # gets either the author's "global_name" (possibly nickname?) and if that doesn't exist, gets their discord username
         self.content = message.get('content', "") # gets content/text of their message
-        global total_words
-        total_words += len(self.content)
         self.timestamp = format_timestamp(message.get('timestamp', "")) # truncated time stamp
         self.mentioned_id = None
         if message.get('mentions'):
@@ -50,6 +45,7 @@ class Message:
             dt = datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M:%S")
             if time(8, 0, 0) <= dt.time() <= time(17, 0, 0):
                 Message.author_names_and_number_of_messages_sent_between_eight_and_five[self.author] = Message.author_names_and_number_of_messages_sent_between_eight_and_five.get(self.author, 0) + 1
+            Message.author_names_and_total_words[self.author] = Message.author_names_and_total_words.get(self.author, 0) + len(self.content.split())
 
     def replace_id_with_name(self): # replaces "<@12345678>" id in message with said person's username
         words = self.content.split()
@@ -105,9 +101,6 @@ def main():
     for file in INPUT_PATH.iterdir(): # iterates over every file in the input path
         if file.is_file():
 
-            global total_words
-            global num_messages_sent_between_eight_and_five
-
             messages = []
             message_count = 0
 
@@ -131,7 +124,9 @@ def main():
 
             with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
                 f.write(f"{file.name}\n")  # adds the input file name to the top
-                f.write(f"\nTotal number of words: {total_words}\n")
+                f.write(f"\nTotal number of words per person:\n")
+                for author in Message.author_names_and_total_words:
+                    f.write(f"    - {author}: {Message.author_names_and_total_words[author]}\n")
                 f.write(f"\nNumber of messages per person:\n")
                 for author in Message.author_names_and_number_of_messages:
                     Message.author_names_and_number_of_messages[author] > 1 and f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
@@ -142,8 +137,13 @@ def main():
                 f.write(f"    - Average response time: {avg:.2f}\n")
                 f.write(f"    - Standard deviation: {standard_deviation:.2f} seconds\n")
 
-            total_words = 0 # reset total_words for next file
-            num_messages_sent_between_eight_and_five = 0 # reset num_messages_sent_between_eight_and_five
+            # resetting all dicts for the next file
+            Message.author_ids_and_names = {}
+            Message.author_names_and_total_words = {}
+            Message.author_names_and_number_of_messages = {}
+            Message.author_names_and_number_of_messages_sent_between_eight_and_five = {}
+            Message.message_ids_and_line_numbers = {}
+
 
 if __name__ == '__main__':
     main()
