@@ -2,7 +2,6 @@ import json
 import pathlib
 from datetime import datetime, time
 import math
-from operator import index
 
 INPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Input' # Input JSON Discord logs folder
 OUTPUT_PATH = pathlib.Path(__file__).parent.absolute() / 'Output' # Output formatted Discord messages folder
@@ -142,11 +141,11 @@ def main():
                     f.write(f"\t\t- Standard deviation: {standard_deviation:.2f} seconds\n")
 
             # resetting all dicts for the next file
-            Message.author_ids_and_names = {}
-            Message.author_names_and_total_words = {}
-            Message.author_names_and_number_of_messages = {}
-            Message.author_names_and_number_of_messages_sent_between_eight_and_five = {}
-            Message.message_ids_and_line_numbers = {}
+            Message.author_ids_and_names.clear()
+            Message.author_names_and_total_words.clear()
+            Message.author_names_and_number_of_messages.clear()
+            Message.author_names_and_number_of_messages_sent_between_eight_and_five.clear()
+            Message.message_ids_and_line_numbers.clear()
 
 
 if __name__ == '__main__':
