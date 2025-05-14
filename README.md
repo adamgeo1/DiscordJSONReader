@@ -30,13 +30,14 @@ in the same directory as `Reader.py`
 - ### "⚠️ No files found in Input directory"
   - When there are no files inside the `Input` directory.
 
-## Output Format Example
 >**_NOTE:_** Discord allows users to directly reply to previous sent messages in the same channel, and the way I've decided
 to format it here is to reference the user and line number that is being replied to, as can be seen in the below example
 
 >**_NOTE:_** Unfortunately due to the nature of Discord's attachment system, file attachments are sent as links and they
 expire around 24 hours of being sent, so they are inaccessible. We can see that an attachment was sent and what file type,
 but nothing more.
+
+## Output Format Example
 
 ---
 
