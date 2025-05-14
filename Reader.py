@@ -82,7 +82,7 @@ class Message:
                 reply_line_num = Message.message_ids_and_line_numbers.get(str(self.referenced_message.get('id')), 0)
                 reply_info = f" Replying to @{reply_name} from line `{reply_line_num}` - " # adds if they are replying to someone to the output string
         if self.attachments:
-            message_line += f"(Attachments: {self.attachments}) "
+            message_line += f" (Attachments: {self.attachments}) "
         content = f" \"{self.replace_id_with_name()}\""
         return message_line + reply_info + content # returns final output message
 
