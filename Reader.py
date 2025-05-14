@@ -81,19 +81,22 @@ class Message:
 
 
 def calculate_time_stats(messages):
-    reply_deltas = []  # stores all time differences
+    author_reply_deltas = {}  # stores all time differences
 
     for message in messages:
         if isinstance(message, Message) and message.referenced_message:
             delta = message.get_time_difference(message.referenced_message)
             if delta:
-                reply_deltas.append(delta)
+                seconds = delta.total_seconds()
+                author_reply_deltas.setdefault(message.author, []).append(seconds)
 
-    total_seconds = [delta.total_seconds() for delta in reply_deltas]
-    avg = sum(total_seconds) / len(total_seconds)
-    standard_deviation = math.sqrt(sum((x - avg) ** 2 for x in total_seconds) / len(total_seconds))
+    author_stats = {}
+    for author, times in author_reply_deltas.items():
+        avg = sum(times) / len(times)
+        standard_deviation = math.sqrt(sum((x - avg) ** 2 for x in times) / len(times))
+        author_stats[author] = (avg, standard_deviation, len(times))
 
-    return avg, standard_deviation
+    return author_stats
 
 
 def main():
@@ -102,7 +105,6 @@ def main():
         if file.is_file():
 
             messages = []
-            message_count = 0
 
             with open(file, 'r', encoding='utf-8') as f:
                 data = json.load(f) # loads json file
@@ -111,7 +113,6 @@ def main():
                     messages.append(f"### **{channel}**\n") # displays channel name
                     for i in range(len(data[channel]) - 1, -1, -1): # the json is saved in reverse chronological order, so we iterate backwards
                         messages.append(Message(line_num, data[channel][i], channel))
-                        message_count += 1
                         line_num += 1
                     messages.append("") # line spacing between channel names
 
@@ -120,22 +121,25 @@ def main():
                 for message in messages:
                     f.write(str(message) + "\n")
 
-            avg, standard_deviation = calculate_time_stats(messages)
+            author_time_stats = calculate_time_stats(messages)
 
             with open(OUTPUT_PATH / f"{file.name}Statistics.txt", 'w', encoding='utf-8') as f:
                 f.write(f"{file.name}\n")  # adds the input file name to the top
                 f.write(f"\nTotal number of words per person:\n")
                 for author in Message.author_names_and_total_words:
-                    f.write(f"    - {author}: {Message.author_names_and_total_words[author]}\n")
+                    f.write(f"\t- {author}: {Message.author_names_and_total_words[author]}\n")
                 f.write(f"\nNumber of messages per person:\n")
                 for author in Message.author_names_and_number_of_messages:
-                    Message.author_names_and_number_of_messages[author] > 1 and f.write(f"    - {author}: {Message.author_names_and_number_of_messages[author]}\n")
+                    Message.author_names_and_number_of_messages[author] > 1 and f.write(f"\t- {author}: {Message.author_names_and_number_of_messages[author]}\n")
                 f.write(f"\nNumber of messages sent between 8 AM and 5 PM per person:\n")
                 for author in Message.author_names_and_number_of_messages_sent_between_eight_and_five:
-                    f.write(f"    - {author}: {Message.author_names_and_number_of_messages_sent_between_eight_and_five[author]}\n")
-                f.write(f"\nTime response statistics:\n") # line breaks
-                f.write(f"    - Average response time: {avg:.2f}\n")
-                f.write(f"    - Standard deviation: {standard_deviation:.2f} seconds\n")
+                    f.write(f"\t- {author}: {Message.author_names_and_number_of_messages_sent_between_eight_and_five[author]}\n")
+                f.write(f"\nTime response statistics per person:\n") # line breaks
+                for author, (avg, standard_deviation, num_responses) in author_time_stats.items():
+                    f.write(f"\t- {author}:\n")
+                    f.write(f"\t\t- Total responses: {num_responses}\n")
+                    f.write(f"\t\t- Average response time: {avg:.2f} seconds\n")
+                    f.write(f"\t\t- Standard deviation: {standard_deviation:.2f} seconds\n")
 
             # resetting all dicts for the next file
             Message.author_ids_and_names = {}
